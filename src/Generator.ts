@@ -1,6 +1,6 @@
 import * as path from "path";
 import { window, workspace } from "vscode";
-import { API_URL, ALTERNATIVE_API_URL, FILE_NAME, MESSAGES } from "./modules/config";
+import { getConfig, FILE_NAME, MESSAGES } from "./modules/config";
 import {
     getFolderOption,
     getItemsOption,
@@ -78,16 +78,21 @@ export default class Generator {
 
     private async generate() {
         const message = window.setStatusBarMessage(MESSAGES.generating);
+        const config = getConfig();
 
-        // Try fetching from GitHub gitignore repository first
-        let data = await fetchTemplatesFromGitHub(this.selected);
+        let data: string | null = null;
 
-        // Fallback to the old API if GitHub fetch fails
+        // Try fetching from GitHub gitignore repository first if enabled
+        if (config.PREFER_GITHUB) {
+            data = await fetchTemplatesFromGitHub(this.selected);
+        }
+
+        // Fallback to the old API if GitHub fetch fails or is disabled
         if (data === null) {
-            data = await getData(`${API_URL}/${this.selected.join(",")}`);
+            data = await getData(`${config.API_URL}/${this.selected.join(",")}`);
 
             if (hitAntiDdos(data)) {
-                data = await getData(`${ALTERNATIVE_API_URL}/${this.selected.join(",")}`);
+                data = await getData(`${config.ALTERNATIVE_API_URL}/${this.selected.join(",")}`);
             }
         }
 
