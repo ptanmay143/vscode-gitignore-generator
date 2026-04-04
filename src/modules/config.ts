@@ -1,5 +1,6 @@
 export const API_URL = "https://www.toptal.com/developers/gitignore/api";
 export const ALTERNATIVE_API_URL = "https://gitignore.palarz.pl";
+export const GITHUB_GITIGNORE_URL = "https://raw.githubusercontent.com/github/gitignore/refs/heads/main";
 export const FILE_NAME = ".gitignore";
 
 export const MESSAGES = {

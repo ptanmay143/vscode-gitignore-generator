@@ -10,7 +10,7 @@ import {
 } from "./modules/ui";
 import { fileExists, hasFolder, writeFile } from "./modules/filesystem";
 import { getData } from "./modules/http";
-import { generateFile, getList, hitAntiDdos } from "./modules/helpers";
+import { generateFile, getList, hitAntiDdos, fetchTemplatesFromGitHub } from "./modules/helpers";
 
 export default class Generator {
     private folders = workspace.workspaceFolders;
@@ -79,17 +79,23 @@ export default class Generator {
     private async generate() {
         const message = window.setStatusBarMessage(MESSAGES.generating);
 
-        let data = await getData(`${API_URL}/${this.selected.join(",")}`);
+        // Try fetching from GitHub gitignore repository first
+        let data = await fetchTemplatesFromGitHub(this.selected);
 
-        if(hitAntiDdos(data)) {
-            data = await getData(`${ALTERNATIVE_API_URL}/${this.selected.join(",")}`);
+        // Fallback to the old API if GitHub fetch fails
+        if (data === null) {
+            data = await getData(`${API_URL}/${this.selected.join(",")}`);
+
+            if (hitAntiDdos(data)) {
+                data = await getData(`${ALTERNATIVE_API_URL}/${this.selected.join(",")}`);
+            }
         }
 
         if (data === null) {
             return window.showErrorMessage(MESSAGES.network_error);
         }
 
-        const output = generateFile(this.filePath, data, this.override);
+        const output = generateFile(this.filePath, data, this.override, this.selected);
 
         if (this.filePath) {
             const result = writeFile(this.filePath, output);

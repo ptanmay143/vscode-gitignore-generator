@@ -1,10 +1,10 @@
 import * as os from "os";
 import { readFile } from "./filesystem";
 import { getData } from "./http";
-import { API_URL, ALTERNATIVE_API_URL, BANNER, USER_RULES } from "./config";
+import { API_URL, ALTERNATIVE_API_URL, GITHUB_GITIGNORE_URL, BANNER, USER_RULES } from "./config";
 
 export function hitAntiDdos(value: string | null) {
-    if(value === null) {
+    if (value === null) {
         return false;
     }
 
@@ -14,7 +14,7 @@ export function hitAntiDdos(value: string | null) {
 export async function getList(path: string | null, keepCurrent: boolean) {
     let data = await getData(`${API_URL}/list`);
 
-    if(hitAntiDdos(data)) {
+    if (hitAntiDdos(data)) {
         data = await getData(`${ALTERNATIVE_API_URL}/list`);
     }
 
@@ -100,8 +100,50 @@ export function getSelectedItems(
     return selected.filter(item => !!item);
 }
 
-export function generateFile(path: string, output: string, override: boolean) {
-    output = `# ${BANNER}\n${output}\n# ${USER_RULES}\n`;
+export async function fetchGitHubTemplate(template: string): Promise<string | null> {
+    // Try common locations: root, Global/, and community/
+    const locations = [
+        `${GITHUB_GITIGNORE_URL}/${template}.gitignore`,
+        `${GITHUB_GITIGNORE_URL}/Global/${template}.gitignore`,
+        `${GITHUB_GITIGNORE_URL}/community/${template}.gitignore`,
+    ];
+
+    for (const url of locations) {
+        const data = await getData(url);
+        // If successful (not null and not error HTML), return the data
+        if (data !== null && !hitAntiDdos(data)) {
+            return data;
+        }
+    }
+
+    return null;
+}
+
+export async function fetchTemplatesFromGitHub(templates: string[]): Promise<string | null> {
+    const contents: string[] = [];
+    const failedTemplates: string[] = [];
+
+    for (const template of templates) {
+        const content = await fetchGitHubTemplate(template);
+        if (content !== null) {
+            contents.push(content.trim());
+        } else {
+            failedTemplates.push(template);
+        }
+    }
+
+    // If some templates failed, log them but continue with what we got
+    if (failedTemplates.length > 0) {
+        console.warn(`Failed to fetch templates from GitHub: ${failedTemplates.join(", ")}`);
+    }
+
+    // Return combined content or null if nothing was fetched
+    return contents.length > 0 ? contents.join("\n\n") : null;
+}
+
+export function generateFile(path: string, output: string, override: boolean, templates?: string[]) {
+    const templateInfo = templates && templates.length > 0 ? templates.join(", ") : "";
+    output = `# ${BANNER}\n# Created by .gitignore Generator with templates: ${templateInfo}\n${output}\n# ${USER_RULES}\n`;
 
     if (!override) {
         const userRules = getUserRules(path);
