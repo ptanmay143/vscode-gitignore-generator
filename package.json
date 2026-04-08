@@ -31,7 +31,8 @@
         "url": "https://github.com/piotrpalarz/vscode-gitignore-generator/issues"
     },
     "activationEvents": [
-        "onCommand:extension.gitignoreGenerate"
+        "onCommand:extension.gitignoreGenerate",
+        "onCommand:extension.gitignoreGenerateInSubdirectory"
     ],
     "main": "./out/extension",
     "contributes": {
@@ -39,6 +40,10 @@
             {
                 "command": "extension.gitignoreGenerate",
                 "title": "Generate .gitignore File"
+            },
+            {
+                "command": "extension.gitignoreGenerateInSubdirectory",
+                "title": "Generate .gitignore in Subdirectory"
             }
         ],
         "configuration": {
@@ -74,10 +79,66 @@
                     "default": "https://raw.githubusercontent.com/github/gitignore/refs/heads/main",
                     "description": "GitHub gitignore repository URL for fetching templates"
                 },
+                "gitignoreGenerator.preferredSource": {
+                    "type": "string",
+                    "enum": [
+                        "github",
+                        "primaryApi",
+                        "fallbackApi"
+                    ],
+                    "enumDescriptions": [
+                        "GitHub repository (fast, community-maintained, with retry logic)",
+                        "Primary API - gitignore.io (reliable fallback source)",
+                        "Fallback API - backup source for resilience"
+                    ],
+                    "default": "github",
+                    "description": "Preferred source for fetching .gitignore templates. Uses automatic fallback chain if preferred source is unavailable."
+                },
+                "gitignoreGenerator.autoSelectMode": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Automatically select Override for directories without .gitignore, Update for directories with .gitignore. When false, always prompt user to choose."
+                },
+                "gitignoreGenerator.requestTimeout": {
+                    "type": "number",
+                    "default": 10000,
+                    "minimum": 1000,
+                    "maximum": 60000,
+                    "description": "Timeout in milliseconds for network requests to template sources (default: 10000ms)"
+                },
+                "gitignoreGenerator.maxRetries": {
+                    "type": "number",
+                    "default": 3,
+                    "minimum": 1,
+                    "maximum": 10,
+                    "description": "Maximum number of retry attempts per source before falling back to next source"
+                },
+                "gitignoreGenerator.enableDebugLogging": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable detailed debug logging for network requests and retry logic (check Debug Console)"
+                },
+                "gitignoreGenerator.showFallbackNotification": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show info notification when falling back from preferred source to alternative source"
+                },
+                "gitignoreGenerator.includeMetadata": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include generation timestamp, templates list, and source attribution in generated .gitignore files"
+                },
+                "gitignoreGenerator.includeDocumentation": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include 'How to maintain this file' documentation section in generated .gitignore files"
+                },
                 "gitignoreGenerator.preferGitHub": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Prefer GitHub gitignore repository as primary source (individual template fetching with fallback to APIs)"
+                    "deprecated": true,
+                    "deprecationMessage": "Use gitignoreGenerator.preferredSource instead (deprecated in v1.1.0, will be removed in v2.0.0)",
+                    "description": "[DEPRECATED] Prefer GitHub gitignore repository as primary source. Use preferredSource instead."
                 }
             }
         }

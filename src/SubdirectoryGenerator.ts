@@ -1,21 +1,23 @@
 import * as path from "path";
+import * as fs from "fs";
 import { window, workspace } from "vscode";
 import { getConfig, FILE_NAME, MESSAGES } from "./modules/config";
 import {
     getFolderOption,
     getItemsOption,
     getOverrideOption,
+    getSubdirectoryOption,
     openFile,
     openUntitledFile,
 } from "./modules/ui";
 import { fileExists, hasFolder, writeFile } from "./modules/filesystem";
-import { getData } from "./modules/http";
-import { generateFile, getList, hitAntiDdos, fetchTemplatesFromGitHub, fetchWithFallback } from "./modules/helpers";
+import { generateFile, getList, fetchWithFallback } from "./modules/helpers";
 
-export default class Generator {
+export default class SubdirectoryGenerator {
     private folders = workspace.workspaceFolders;
     private filePath: string | null = null;
     private override: boolean = true;
+    private subdirectory: string | null = null;
     private selected: string[];
 
     public async init() {
@@ -53,24 +55,36 @@ export default class Generator {
             folder => folder.name === folderName
         ).uri.fsPath;
 
-        return path.join(folderPath, FILE_NAME);
+        // Get subdirectory from user
+        this.subdirectory = await this.get(getSubdirectoryOption);
+
+        // Normalize subdirectory path
+        const normalizedSubdir = this.subdirectory ? this.subdirectory.replace(/\\/g, "/").replace(/\/$/, "") : this.subdirectory;
+
+        // Create full path with subdirectory
+        return normalizedSubdir
+            ? path.join(folderPath, normalizedSubdir, FILE_NAME)
+            : path.join(folderPath, FILE_NAME);
     }
 
     private async getOverrideOption() {
+        // Check if file exists in the subdirectory
+        const fileExistsInSubdir = fileExists(this.filePath);
+
         const config = getConfig();
-        const fileExits = fileExists(this.filePath);
 
         if (config.AUTO_SELECT_MODE) {
-            // Auto-select mode: silently select based on file existence
-            const override = !fileExits;
+            const override = !fileExistsInSubdir;
             if (config.ENABLE_DEBUG_LOGGING) {
-                console.log(`[GitIgnore Generator] Auto-select mode: file exists=${fileExits}, override=${override}`);
+                console.log(
+                    `[GitIgnore Generator] Auto-select mode: file exists=${fileExistsInSubdir}, override=${override}`,
+                );
             }
             return override;
         }
 
         // Manual mode: always prompt user
-        return fileExits ? await this.get(getOverrideOption) : true;
+        return fileExistsInSubdir ? await this.get(getOverrideOption) : true;
     }
 
     private async getSelectedOptions() {
@@ -90,6 +104,30 @@ export default class Generator {
     private async generate() {
         const message = window.setStatusBarMessage(MESSAGES.generating);
         const config = getConfig();
+
+        // Ensure subdirectory exists
+        if (this.filePath) {
+            const dirname = path.dirname(this.filePath);
+            try {
+                if (!fs.existsSync(dirname)) {
+                    // Create directories recursively
+                    const parts = dirname.split(path.sep);
+                    let currentPath = "";
+                    for (const part of parts) {
+                        currentPath = path.join(currentPath, part);
+                        if (currentPath && !fs.existsSync(currentPath)) {
+                            fs.mkdirSync(currentPath);
+                        }
+                    }
+                }
+            } catch (error) {
+                message.dispose();
+                return window.showErrorMessage(
+                    `Failed to create subdirectory: ${error instanceof Error ? error.message : String(error)}`,
+                );
+            }
+        }
+
         let notificationShown = false;
 
         // Use new robust failover chain to fetch templates
